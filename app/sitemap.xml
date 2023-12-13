@@ -1,0 +1,26 @@
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+        <loc>https://nexjs-dashboard-fpresa.vercel.app</loc>
+        <lastmod>2023-12-12T15:02:24.021Z</lastmod>
+        <changefreq>never</changefreq>
+        <priority>1</priority>
+    </url>
+    <url>
+        <loc>https://nexjs-dashboard-fpresa.vercel.app/login</loc>
+        <lastmod>2023-12-12T15:02:24.021Z</lastmod>
+        <changefreq>never</changefreq>
+        <priority>0.1</priority>
+    </url>
+    <url>
+        <loc>https://nexjs-dashboard-fpresa.vercel.app/dashboard</loc>
+        <lastmod>2023-12-12T15:02:24.021Z</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.6</priority>
+    </url>
+    <url>
+        <loc>https://nexjs-dashboard-fpresa.vercel.app/invoices</loc>
+        <lastmod>2023-12-12T15:02:24.021Z</lastmod>
+        <changefreq>daily</changefreq>
+        <priority>0.5</priority>
+    </url>
+</urlset>

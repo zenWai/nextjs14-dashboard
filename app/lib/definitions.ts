@@ -86,3 +86,7 @@ export type InvoiceForm = {
   amount: number;
   status: 'pending' | 'paid';
 };
+
+export type InvoiceEditParams = {
+  params: { id: string };
+};

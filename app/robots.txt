@@ -1,0 +1,5 @@
+User-Agent: *
+Allow: /
+Disallow: /private/
+
+Sitemap: https://nexjs-dashboard-fpresa.vercel.app/sitemap.xml

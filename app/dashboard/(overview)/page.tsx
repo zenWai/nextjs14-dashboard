@@ -8,6 +8,7 @@ import {
   CardsSkeleton,
 } from '@/app/ui/skeletons';
 import CardWrapper from '@/app/ui/dashboard/cards';
+import { Metadata } from 'next';
 
 export default async function Page() {
   return (
@@ -31,3 +32,7 @@ export default async function Page() {
     </main>
   );
 }
+
+export const metadata: Metadata = {
+  title: 'Dashboard',
+};
