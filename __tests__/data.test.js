@@ -12,6 +12,7 @@ import {
   fetchInvoicesPages,
   fetchLatestInvoices,
   fetchRevenue,
+  getUser,
 } from '../app/lib/data';
 import { formatCurrency } from '../app/lib/utils';
 import { unstable_noStore as noStore } from 'next/cache';
@@ -23,7 +24,9 @@ jest.mock('@vercel/postgres', () => ({
 jest.mock('next/cache', () => ({
   unstable_noStore: jest.fn(),
 }));
-
+beforeEach(() => {
+  jest.resetAllMocks();
+});
 describe('fetchRevenue', () => {
   it('successfully fetches revenue data', async () => {
     const mockData = [{ month: 'Jan', revenue: 1000 }];
@@ -34,6 +37,19 @@ describe('fetchRevenue', () => {
     expect(result).toEqual(mockData);
     // Expect the first argument of the sql call to be an array containing the query string
     expect(sql).toHaveBeenCalledWith(['SELECT * FROM revenue']);
+  });
+
+  it('should throw an error when there is an error querying the database', async () => {
+    // Given
+    const errorMessage = 'Failed to fetch revenue data.';
+    sql.mockRejectedValue(new Error(errorMessage));
+
+    // When
+    const fetchPromise = fetchRevenue();
+
+    // Then
+    await expect(fetchPromise).rejects.toThrow(errorMessage);
+    expect(sql).toHaveBeenCalledTimes(1);
   });
 
   it('should return an empty array if there is no revenue data', async () => {
@@ -167,6 +183,18 @@ describe('fetchLatestInvoices', () => {
     }));
     expect(result).toEqual(mockDataFormattedAmount);
     expect(sql).toHaveBeenCalledWith([expect.any(String)]);
+  });
+  it('should throw an error when failing to fetch invoices', async () => {
+    // Given
+    const errorMessage = 'Failed to fetch the latest invoices.';
+    sql.mockRejectedValue(new Error(errorMessage));
+
+    // When
+    const fetchPromise = fetchLatestInvoices();
+
+    // Then
+    await expect(fetchPromise).rejects.toThrow(errorMessage);
+    expect(sql).toHaveBeenCalledTimes(1);
   });
   it('should format the amount of each invoice to a currency string', async () => {
     // Given
@@ -398,6 +426,19 @@ describe('fetchCardData', () => {
       totalPendingInvoices: '$20.00',
     });
   });
+  it('should throw an error with message "Failed to fetch card data." when any of the SQL queries fail', async () => {
+    // Given
+    const errorMessage = 'Failed to fetch card data.';
+    sql.mockRejectedValueOnce(new Error(errorMessage));
+
+    // When
+    const fetchPromise = fetchCardData();
+
+    // Then
+    await expect(fetchPromise).rejects.toThrow(errorMessage);
+    // 3 promisesinvoiceCountPromise,customerCountPromise,invoiceStatusPromise
+    expect(sql).toHaveBeenCalledTimes(3);
+  });
   it('should format the totalPaidInvoices and totalPendingInvoices properties as currency', async () => {
     // Given
     const invoiceCountPromise = Promise.resolve({ rows: [{ count: '5' }] });
@@ -464,17 +505,21 @@ describe('fetchCardData', () => {
     expect(result.totalPaidInvoices).toBe('$0.00');
     expect(result.totalPendingInvoices).toBe('$0.00');
   });
-  it('should use noStore function to prevent caching', async () => {
+  it('should use noStore function to prevent caching when fetching card data', async () => {
     // Given
-    const noStoreMock = jest.fn();
-
-    noStore.mockImplementation(noStoreMock);
+    const mockInvoiceCount = { rows: [{ count: '5' }] };
+    const mockCustomerCount = { rows: [{ count: '10' }] };
+    const mockInvoiceStatus = { rows: [{ paid: '5000', pending: '2000' }] };
+    sql
+      .mockResolvedValueOnce(mockInvoiceCount)
+      .mockResolvedValueOnce(mockCustomerCount)
+      .mockResolvedValueOnce(mockInvoiceStatus);
 
     // When
     await fetchCardData();
 
     // Then
-    expect(noStoreMock).toHaveBeenCalled();
+    expect(noStore).toHaveBeenCalled();
   });
 });
 
@@ -524,6 +569,20 @@ describe('fetchFilteredInvoices', () => {
       ITEMS_PER_PAGE,
       0,
     );
+  });
+  it('should throw an error if the database query fails', async () => {
+    // Given
+    const query = 'John';
+    const currentPage = 1;
+    const errorMessage = 'Failed to fetch invoices.';
+    sql.mockRejectedValue(new Error(errorMessage));
+
+    // When
+    const fetchPromise = fetchFilteredInvoices(query, currentPage);
+
+    // Then
+    await expect(fetchPromise).rejects.toThrow(errorMessage);
+    expect(sql).toHaveBeenCalledTimes(1);
   });
   it('should return an empty array if no invoices match the query', async () => {
     // Given
@@ -800,6 +859,19 @@ describe('fetchInvoicesPages', () => {
     // Then
     expect(result).toBe(2);
   });
+  it('should throw an error when the query is invalid', async () => {
+    // Given
+    const query = 'invalid query';
+    const errorMessage = 'Failed to fetch total number of invoices.';
+    sql.mockRejectedValue(new Error(errorMessage));
+
+    // When
+    const fetchPromise = fetchInvoicesPages(query);
+
+    // Then
+    await expect(fetchPromise).rejects.toThrow(errorMessage);
+    expect(sql).toHaveBeenCalledTimes(1);
+  });
   it('should return 0 pages when the query is empty', async () => {
     // Given
     const count = { rows: [{ count: '0' }] };
@@ -904,6 +976,26 @@ describe('fetchInvoiceById', () => {
     // Then
     expect(result).toEqual(expectedInvoice);
   });
+  it('should handle and log database errors', async () => {
+    // Given
+    const id = '123';
+    const errorMessage = 'Failed to fetch invoice.';
+    sql.mockRejectedValue(new Error(errorMessage));
+    console.error = jest.fn();
+
+    // When
+    const fetchPromise = fetchInvoiceById(id);
+
+    // Then
+    await expect(fetchPromise).rejects.toThrow(errorMessage);
+    expect(sql).toHaveBeenCalledTimes(1);
+    expect(sql).toHaveBeenCalledWith(expect.anything(), id);
+    expect(console.error).toHaveBeenCalledTimes(1);
+    expect(console.error).toHaveBeenCalledWith(
+      'Database Error:',
+      expect.any(Error),
+    );
+  });
   it('should convert the amount from cents to dollars when fetching an invoice', async () => {
     // Given
     const id = '123';
@@ -950,6 +1042,18 @@ describe('fetchCustomers', () => {
 
     // Then
     expect(result).toEqual(expectedCustomers);
+  });
+  it('should throw an error if there is an error in the database query', async () => {
+    // Given
+    const errorMessage = 'Failed to fetch all customers.';
+    sql.mockRejectedValue(new Error(errorMessage));
+
+    // When
+    const fetchPromise = fetchCustomers();
+
+    // Then
+    await expect(fetchPromise).rejects.toThrow(errorMessage);
+    expect(sql).toHaveBeenCalledTimes(1);
   });
   it('should return an empty array when the query is successful but there are no customers in the database', async () => {
     // Given
@@ -1038,6 +1142,20 @@ describe('fetchFilteredCustomers', () => {
       6,
       0,
     );
+  });
+  it('should throw an error if there is a database error', async () => {
+    // Given
+    const query = 'John';
+    const currentPage = 1;
+    const errorMessage = 'Failed to fetch customer table.';
+    sql.mockRejectedValue(new Error(errorMessage));
+
+    // When
+    const fetchPromise = fetchFilteredCustomers(query, currentPage);
+
+    // Then
+    await expect(fetchPromise).rejects.toThrow(errorMessage);
+    expect(sql).toHaveBeenCalledTimes(1);
   });
   it('should format total_pending and total_paid as currency strings', async () => {
     // Given
@@ -1276,6 +1394,20 @@ describe('fetchCustomersPages', () => {
     expect(result).toBe(expectedTotalPages);
     expect(sql).toHaveBeenCalledWith(expect.anything(), '%John%', '%John%');
   });
+
+  it('should throw an error if there is an error in the database query', async () => {
+    // Given
+    const query = 'valid query';
+    const errorMessage = 'Failed to fetch total number of customer pages.';
+    sql.mockRejectedValue(new Error(errorMessage));
+
+    // When
+    const fetchPromise = fetchCustomersPages(query);
+
+    // Then
+    await expect(fetchPromise).rejects.toThrow(errorMessage);
+    expect(sql).toHaveBeenCalledTimes(1);
+  });
   it('should return 0 when there are no customers that match the query string', async () => {
     // Given
     const query = 'Nonexistent';
@@ -1318,5 +1450,88 @@ describe('fetchCustomersPages', () => {
     // Then
     expect(result).toBe(expectedTotalPages);
     expect(sql).toHaveBeenCalledWith(expect.anything(), '%John%', '%John%');
+  });
+});
+
+describe('getUser', () => {
+  it('should return a user object when a valid email is passed as argument', async () => {
+    // Given
+    const validEmail = 'test@example.com';
+    const mockUser = {
+      id: '1',
+      name: 'Test User',
+      email: 'test@example.com',
+      password: 'password123',
+    };
+
+    sql.mockResolvedValueOnce({ rows: [mockUser] });
+
+    // When
+    const result = await getUser(validEmail);
+
+    // Then
+    expect(result).toBeDefined();
+    expect(result.id).toBe('1');
+    expect(result.name).toBe('Test User');
+    expect(result.email).toBe('test@example.com');
+    expect(result.password).toBe('password123');
+  });
+  it('should throw an error when the database connection fails', async () => {
+    // Given
+    const email = 'test@example.com';
+    sql.mockRejectedValue(new Error('Failed to connect to the database'));
+
+    // When
+    const fetchPromise = getUser(email);
+
+    // Then
+    await expect(fetchPromise).rejects.toThrow('Failed to fetch user.');
+    expect(sql).toHaveBeenCalledTimes(1);
+  });
+  it('should throw an error when an invalid email is passed as argument', async () => {
+    // Given
+    const invalidEmail = 'invalidemail';
+
+    // When
+    const fetchPromise = getUser(invalidEmail);
+
+    // Then
+    await expect(fetchPromise).rejects.toThrow('Failed to fetch user.');
+  });
+
+  const CUSTOMERS_PER_PAGE = 6;
+  //testing forEach testing:
+  const testCases = [
+    { count: 0, expectedPages: 0 },
+    { count: 5, expectedPages: 1 },
+    { count: CUSTOMERS_PER_PAGE, expectedPages: 1 },
+    { count: CUSTOMERS_PER_PAGE + 1, expectedPages: 2 },
+    { count: CUSTOMERS_PER_PAGE * 2, expectedPages: 2 },
+    { count: CUSTOMERS_PER_PAGE * 2 + 1, expectedPages: 3 },
+  ];
+
+  testCases.forEach(({ count, expectedPages }) => {
+    it(`should return ${expectedPages} page(s) for ${count} customer(s), testCases.forEach`, async () => {
+      // Given
+      const query = 'test';
+      sql.mockResolvedValueOnce({ rows: [{ count }] });
+
+      // When
+      const result = await fetchCustomersPages(query);
+
+      // Then
+      expect(result).toBe(expectedPages);
+    });
+  });
+  it('should return 0 when count is null or undefined', async () => {
+    // Given
+    const query = 'test';
+    sql.mockResolvedValueOnce({ rows: [{ count: null }] }); // Simulating null count
+
+    // When
+    const result = await fetchCustomersPages(query);
+
+    // Then
+    expect(result).toBe(0);
   });
 });
