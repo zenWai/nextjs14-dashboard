@@ -2,11 +2,17 @@ name: Next.js CI
 
 on:
   push:
-    branches: [main, actions]
   pull_request:
-    branches: [main, actions]
 
 jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout Repository'
+        uses: actions/checkout@v3
+      - name: 'Dependency Review'
+        uses: actions/dependency-review-action@v3
+
   build-and-test:
     runs-on: ubuntu-latest
 
