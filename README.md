@@ -1,5 +1,7 @@
 ## Next.js App Router
 
+[![Next.js CI](https://github.com/zenWai/nextjs-dashboard/actions/workflows/ci.yml/badge.svg)](https://github.com/zenWai/nextjs-dashboard/actions/workflows/ci.yml)
+
 <ul>
 <li>Created a database in the same region as the application code to reduce latency between server and database.</li>
 <li>Fetched data on the server with React Server Components. This allows to keep expensive data fetches and logic on the server, reduces the client-side JavaScript bundle, and prevents database secrets from being exposed to the client.</li>
